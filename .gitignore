@@ -1,3 +1,4 @@
 /data/
 /.vscode/
 /.ipynb_checkpoints/
+__pycache__/stock_screener.cpython-37.pyc
