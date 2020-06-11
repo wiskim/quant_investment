@@ -108,7 +108,7 @@ def roic_screener(year, period=1):
     return roic_df
 
 def fcfa_screener(year, period=1):
-    fcfa_df = get_fs(account_nm=['영업활동으로인한현금흐름', '*유형자산순취득액', '*무형자산순취득액', '총자산'], year=year, period=3)
+    fcfa_df = get_fs(account_nm=['영업활동으로인한현금흐름', '*유형자산순취득액', '*무형자산순취득액', '총자산'], year=year, period=period)
     fcfa_df = fcfa_df.pivot_table(index=['stock_cd', 'year'], columns='account_nm', values='fs_value')
     fcfa_df['fcf'] = fcfa_df['영업활동으로인한현금흐름'] - (fcfa_df['*유형자산순취득액'] + fcfa_df['*무형자산순취득액'])
     fcfa_df = fcfa_df.pivot_table(values=['fcf', '총자산'], index='stock_cd', columns='year')
