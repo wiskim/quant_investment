@@ -63,19 +63,7 @@ def get_nearest_bizday(date):
     con.close()
     return bizday
 
-def get_mkt_cap(year, point='4q'):
-    date = str(year)
-    valid_point = ('1q', '2q', '3q', '4q')
-    if point not in valid_point:
-        raise ValueError('시점은 각 분기말(1q, 2q, 3q, 4q) 중 하나를 입력하여야 합니다.')
-    elif point == '1q':
-        date = date + '-03-31'
-    elif point == '2q':
-        date = date + '-06-30'
-    elif point == '3q':
-        date = date + '-09-30'
-    elif point == '4q':
-        date = date + '-12-31'
+def get_mkt_cap(date):
     bizday = get_nearest_bizday(date=date)
     bizday = "'" + bizday + "'"
     sql = "SELECT * FROM kor_mkt_cap WHERE date = " + bizday
@@ -120,16 +108,14 @@ def roic_screener(year, period=1):
     return roic_df
 
 def fcfa_screener(year, period=1):
-    fcfa_df = get_fs(account_nm=['영업활동으로인한현금흐름', '*유형자산순취득액', '*무형자산순취득액', '총자산'], year=year, period=period)
+    fcfa_df = get_fs(account_nm=['영업활동으로인한현금흐름', '*유형자산순취득액', '*무형자산순취득액', '총자산'], year=year, period=3)
     fcfa_df = fcfa_df.pivot_table(index=['stock_cd', 'year'], columns='account_nm', values='fs_value')
-    fcfa_df['fcfa'] = np.round((fcfa_df['영업활동으로인한현금흐름'] - (fcfa_df['*유형자산순취득액'] + fcfa_df['*무형자산순취득액'])) / fcfa_df['총자산'], 4)
-    fcfa_df = fcfa_df.pivot_table(index='stock_cd', columns='year', values='fcfa')
-    fcfa_df = fcfa_df.dropna()
-    fcfa_df = fcfa_df + 1
-    fcfa_df['fcfa_gmean'] = fcfa_df.product(axis=1, skipna=True) ** (1 / fcfa_df.count(axis=1))
-    fcfa_df = fcfa_df - 1
-    fcfa_df = fcfa_df.sort_values('fcfa_gmean', ascending=False)
-    fcfa_df.columns.name=''
+    fcfa_df['fcf'] = fcfa_df['영업활동으로인한현금흐름'] - (fcfa_df['*유형자산순취득액'] + fcfa_df['*무형자산순취득액'])
+    fcfa_df = fcfa_df.pivot_table(values=['fcf', '총자산'], index='stock_cd', columns='year')
+    fcfa_df.columns = fcfa_df.columns.map('_'.join)
+    fcfa_df['fcf_sum'] = fcfa_df.filter(regex='^fcf').sum(axis=1)
+    fcfa_df['fcfa'] = fcfa_df['fcf_sum'] / fcfa_df['총자산_'+str(year)]
+    fcfa_df = fcfa_df.sort_values('fcfa', ascending=False)
     fcfa_df = fcfa_df.reset_index()
     return fcfa_df
 
@@ -158,10 +144,10 @@ def mg_screener(year, period=1):
     mg_df = mg_df.reset_index()
     return mg_df
 
-def ete_screener(year):
+def ete_screener(year, mkt_cap_date):
     kor_fs = get_fs(account_nm=['*순차입부채', '영업이익'], year=year, period=1)
     kor_fs = kor_fs.pivot_table(index = 'stock_cd', columns='account_nm', values='fs_value')
-    kor_mkt_cap = get_mkt_cap(year=year, point='4q')    # 시가총액 기준일자 설정
+    kor_mkt_cap = get_mkt_cap(mkt_cap_date)    # 시가총액 기준일자 설정
     ete_df = pd.merge(kor_fs, kor_mkt_cap, left_on=kor_fs.index, right_on='stock_cd', how='inner')
     ete_df.rename(columns={'*순차입부채':'net_debt', '영업이익':'ebit'}, inplace=True)
     ete_df = ete_df[['stock_cd', 'ebit', 'net_debt', 'mkt_cap']]
