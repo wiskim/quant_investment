@@ -122,9 +122,12 @@ def fcfa_screener(year, period=1):
 def mg_screener(year, period=1):
     mg_df = get_fs(account_nm=['매출액', '매출총이익', '영업수익', '영업이익'], year=year, period=period+1)
     mg_df = mg_df.pivot_table(index=['stock_cd', 'year'], columns='account_nm', values='fs_value')
-    mg_df['gm'] = np.where(mg_df.매출액 != mg_df.매출총이익, np.round(mg_df.매출총이익 / mg_df.매출액, 4), np.round(mg_df.영업이익 / mg_df.영업수익, 4))
+    mg_df['gm'] = np.where(
+        mg_df.매출액 != mg_df.매출총이익, 
+        np.round(mg_df.매출총이익 / mg_df.매출액, 4), 
+        np.round(mg_df.영업이익 / mg_df.영업수익, 4)
+    )    # gross margin (단, 매출액과 매출총이익 항목없이 영업수익과 영업이익만 보여주는 종목은 영업이익률 사용)
     mg_df = mg_df.pivot_table(index='stock_cd', columns='year', values='gm')
-    mg_df.columns = 'gm_' + mg_df.columns
     mg_df = mg_df.dropna()  # 매출총이익률을 계산할 수 있는 종목만 필터링
     mg_df = mg_df[(mg_df > 0).all(1)] # 매출총이익이 적자인 종목은 제외
     for i in range(1, len(mg_df.columns)):
@@ -133,10 +136,14 @@ def mg_screener(year, period=1):
     mg_df['mg_gmean'] = mg_df.filter(regex='^mg').product(axis=1, skipna=True) ** (1 / mg_df.filter(regex='^mg').count(axis=1))
     mg_df['mg_gmean'] = np.round(mg_df['mg_gmean'], 4)
     mg_df = mg_df - 1
-    mg_df['ms'] = mg_df.filter(regex='^[0-9]').mean(axis=1) / mg_df.filter(regex='^[0-9]').std(axis=1) # margin stability
+    col_before = list(mg_df.columns[~mg_df.columns.str.startswith('mg')])
+    col_after = ['gm_' + x for x in col_before]
+    col_map = dict(zip(col_before, col_after))
+    mg_df = mg_df.rename(columns=col_map)
+    mg_df['ms'] = mg_df.filter(regex='^gm').iloc[:, 1:].mean(axis=1) / mg_df.filter(regex='^gm').iloc[:, 1:].std(axis=1) # margin stability
     mg_df['ms'] = np.round(mg_df['ms'], 4)
     mg_df['p_mg'] = mg_df.mg_gmean.rank(pct=True)
-    mg_df['p_ms'] = mg_df.ms.rank(pct=True, ascending=False)
+    mg_df['p_ms'] = mg_df.ms.rank(pct=True)
     mg_df['mm'] = mg_df[['p_mg', 'p_ms']].max(axis=1) # maximum margin
     mg_df = mg_df.sort_values('mm', ascending=False)
     mg_df.columns.name=''
