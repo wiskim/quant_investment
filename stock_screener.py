@@ -43,7 +43,7 @@ def get_listed_stock(year, period=1):
     kor_ticker = kor_ticker[(kor_ticker.listed_day < pd.to_datetime(str(year-(period-1))+'-01-01')) & 
                             ((kor_ticker.unlisted_day.isnull()) | 
                              (kor_ticker.unlisted_day > pd.to_datetime(str(year+1)+'-06-30')))]
-    kor_ticker = kor_ticker[['stock_cd']]
+    kor_ticker = kor_ticker[['stock_cd', 'stock_nm', 'fn_ind_nm']]
     return kor_ticker
 
 def get_nearest_bizday(date):    
