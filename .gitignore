@@ -1,5 +1,6 @@
 /data/
 /.vscode/
 /.ipynb_checkpoints/
+/.idea/
 __pycache__/stock_screener.cpython-37.pyc
 __pycache__/stock_screener.cpython-36.pyc
