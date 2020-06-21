@@ -42,16 +42,15 @@ for year in range(2003, 2020):
     price_df = get_price(year, stock_cd_list)
     price_df = price_df.pivot_table(values='price', index='date', columns='stock_cd')
     ret_df = price_df.pct_change().fillna(0)
-    ret_df = ret_df + 1
-    ret_df = ret_df.cumprod().fillna(1)
-    ret_df = ret_df - 1
+    ret_df = (ret_df + 1).cumprod().fillna(1) - 1
     ret_df['port_cum_ret'] = ret_df.mean(axis=1)    # 동일비중 투자 가정
     ret_df['port_daily_ret'] = ret_df['port_cum_ret'].shift(1).fillna(0)
     ret_df['port_daily_ret'] = ((1 + ret_df['port_cum_ret']) / (1+ ret_df['port_daily_ret'])) - 1
-    port_ret_df = pd.concat([port_ret_df, ret_df[['port_daily_ret', 'port_cum_ret']]])
+    port_ret_df = pd.concat([port_ret_df, ret_df[['port_daily_ret']]])
     ret_df = pd.DataFrame(ret_df.iloc[-1, :-2])
     stock_ret_df = pd.concat([stock_ret_df, ret_df], axis=1)
-    
+
+port_ret_df['port_cum_ret'] = (port_ret_df['port_daily_ret'] + 1).cumprod().fillna(1) - 1
 port_ret_df = port_ret_df.reset_index()
 port_ret_df['date'] = port_ret_df['date'].map(lambda x: datetime.datetime.strptime(x, '%Y-%m-%d'))
 port_ret_df.set_index(port_ret_df['date'], inplace=True)
