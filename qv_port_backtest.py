@@ -19,7 +19,8 @@ qv_port = qv_port[qv_port['rank'] <= 20].sort_values(['year', 'rank'])  # Qualit
 # %%
 def get_price(year, stock_cd=None):
     con = sqlite3.connect('./data/kor_stock.db')
-    sql = "SELECT * FROM kor_price WHERE DATE(date) BETWEEN " + \
+    sql = "SELECT stock_cd, date, price FROM kor_price WHERE price_div = 'close'" +\
+          " AND DATE(date) BETWEEN " + \
           "'" + str(year) + "-07-01' AND " +\
           "'" + str(year+1) + "-06-30'"
     if stock_cd == None:
