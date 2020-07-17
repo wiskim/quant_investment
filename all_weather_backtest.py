@@ -6,8 +6,8 @@ import FinanceDataReader as fdr
 import pyfolio as pf
 
 # %%
-ticker_list = ['VT', 'IAU', 'EDV', 'VCLT', 'EMLC', 'LTPZ', 'BCI']
-weight = np.array([0.4, 0.05, 0.25, 0.075, 0.075, 0.1, 0.05])
+ticker_list = ['TLT', 'IEF', 'SPY', 'IAU', 'DBC']
+weight = np.array([0.4, 0.15, 0.3, 0.075, 0.075])
 
 open_df = pd.DataFrame()
 close_df = pd.DataFrame()
@@ -27,7 +27,7 @@ close_df = close_df.dropna()
 
 # %%
 ym_list = pd.date_range(
-	datetime.datetime.strptime('2018-01', '%Y-%m'),
+	datetime.datetime.strptime('2015-08', '%Y-%m'),
 	datetime.datetime.strptime('2020-06', '%Y-%m'),
 	freq='MS').strftime('%Y-%m').tolist()
 
