@@ -33,7 +33,7 @@ temp = fs['지배주주지분'][['2019']]
 temp.columns = ['b0']   # 자기자본
 srim = pd.merge(srim, temp, left_on=srim.index, right_on=temp.index, how='left')
 ke = 0.08   # 주주 요구 수익률
-srim['equity_value'] = np.trunc(srim['b0'] * (srim['roe'] - ke) / ke)
+srim['equity_value'] = np.trunc(srim['b0'] + srim['b0'] * (srim['roe'] - ke) / ke)
 srim = srim.rename(columns={'key_0' : 'stock_cd'})
 
 # %%
