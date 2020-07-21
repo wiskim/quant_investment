@@ -1,8 +1,10 @@
+# %%
 import pandas as pd
 import sqlite3
 
 df = pd.read_csv('./data/dataguide_mkt_cap.csv')
 
+# %%
 con = sqlite3.connect('./data/kor_stock.db')
 
 dtype = {
