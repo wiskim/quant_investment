@@ -1,5 +1,12 @@
 # %%
-from stock_screener import *
+import os
+project_path = os.path.normpath(os.path.join(os.path.dirname(__file__), '..'))
+data_path = os.path.join(project_path, 'data')
+import sys
+sys.path.append(project_path)
+
+# %%
+from screener.stock_screener import *
 import numpy as np
 import pandas as pd
 import sqlite3
@@ -38,7 +45,7 @@ srim = srim.rename(columns={'key_0' : 'stock_cd'})
 
 # %%
 sql = "SELECT * FROM kor_shares WHERE DATE = '2020-06-30'"
-con = sqlite3.connect('./data/kor_stock.db')
+con = sqlite3.connect(os.path.join(data_path, 'kor_stock.db'))
 shares = pd.read_sql(sql, con)
 
 # %%
@@ -57,4 +64,4 @@ srim['ratio'] = np.trunc(srim['close_price'] / srim['fair_price'] * 10000) / 100
 srim = srim.sort_values('ratio')
 
 # %%
-srim.to_csv('./data/srim_result.csv', index=False)
+srim.to_csv(os.path.join(data_path, 'srim_result.csv'), index=False)

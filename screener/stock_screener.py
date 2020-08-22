@@ -1,4 +1,9 @@
 # %%
+import os
+project_path = os.path.normpath(os.path.join(os.path.dirname(__file__), '..'))
+data_path = os.path.join(project_path, 'data')
+
+# %%
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -28,13 +33,13 @@ def get_fs(stock_cd=[], account_nm=[], year=None, period=5, ci_div='IND'):
         account_nm_list = ','.join("'" + str(x) + "'" for x in account_nm)
         sql = sql + " AND account_nm IN (" + account_nm_list + ")"
     sql = sql + " AND ci_div = '" + ci_div + "'"
-    con = sqlite3.connect('./data/kor_stock.db')
+    con = sqlite3.connect(os.path.join(data_path, 'kor_stock.db'))
     kor_fs = pd.read_sql(sql, con)
     con.close()
     return kor_fs
 
 def get_listed_stock(year, period=1):
-    con = sqlite3.connect('./data/kor_stock.db')
+    con = sqlite3.connect(os.path.join(data_path, 'kor_stock.db'))
     sql = "SELECT * FROM kor_ticker WHERE fn_sec_nm != '금융'"  #금융회사 제외
     kor_ticker = pd.read_sql(sql, con)
     con.close()
@@ -57,7 +62,7 @@ def get_nearest_bizday(date):
     sql = sql + ") AND date("
     sql = sql + date_str2
     sql = sql + ") ORDER BY date DESC LIMIT 1"
-    con = sqlite3.connect('./data/kor_stock.db')
+    con = sqlite3.connect(os.path.join(data_path, 'kor_stock.db'))
     bizday = pd.read_sql(sql, con)
     bizday = bizday['date'].values[0]
     con.close()
@@ -67,7 +72,7 @@ def get_mkt_cap(date):
     bizday = get_nearest_bizday(date=date)
     bizday = "'" + bizday + "'"
     sql = "SELECT * FROM kor_mkt_cap WHERE date = " + bizday
-    con = sqlite3.connect('./data/kor_stock.db')
+    con = sqlite3.connect(os.path.join(data_path, 'kor_stock.db'))
     mcap_df = pd.read_sql(sql, con)
     return mcap_df
 

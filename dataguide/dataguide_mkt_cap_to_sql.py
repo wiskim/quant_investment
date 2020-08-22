@@ -1,11 +1,17 @@
 # %%
+import os
+
+project_path = os.path.normpath(os.path.join(os.path.dirname(__file__), '..'))
+data_path = os.path.join(project_path, 'data')
+
+# %%
 import pandas as pd
 import sqlite3
 
-df = pd.read_csv('./data/dataguide_mkt_cap.csv')
+df = pd.read_csv(os.path.join(data_path, 'dataguide_mkt_cap.csv'))
 
 # %%
-con = sqlite3.connect('./data/kor_stock.db')
+con = sqlite3.connect(os.path.join(data_path, 'kor_stock.db'))
 
 dtype = {
     'date' : 'TEXT',

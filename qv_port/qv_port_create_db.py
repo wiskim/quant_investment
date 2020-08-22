@@ -1,5 +1,12 @@
 # %%
-from stock_screener import *
+import os
+project_path = os.path.normpath(os.path.join(os.path.dirname(__file__), '..'))
+data_path = os.path.join(project_path, 'data')
+import sys
+sys.path.append(project_path)
+
+# %%
+from screener.stock_screener import *
 import pandas as pd
 import numpy as np
 import sqlite3

@@ -1,9 +1,15 @@
 # %%
+import os
+
+project_path = os.path.normpath(os.path.join(os.path.dirname(__file__), '..'))
+data_path = os.path.join(project_path, 'data')
+
+# %%
 import pandas as pd
 import sqlite3
 
 # %%
-df = pd.read_csv('./data/price_csv_200715.csv', header=[0, 1], index_col=0)
+df = pd.read_csv(os.path.join(data_path, 'dataguide_price.csv'), header=[0, 1], index_col=0)
 
 # %%
 df = df.unstack().reset_index()
@@ -19,6 +25,6 @@ dtype = {
     'date' : 'TEXT',
     'price' : 'INTEGER'
 }
-con = sqlite3.connect('./data/kor_stock.db')
+con = sqlite3.connect(os.path.join(data_path, 'kor_stock.db'))
 df.to_sql('kor_price', con, if_exists='replace', index=False, dtype=dtype)
 con.close()

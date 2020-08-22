@@ -1,4 +1,9 @@
 # %%
+import os
+project_path = os.path.normpath(os.path.join(os.path.dirname(__file__), '..'))
+data_path = os.path.join(project_path, 'data')
+
+# %%
 import pandas as pd
 import numpy as np
 import sqlite3
@@ -6,7 +11,7 @@ import pyfolio as pf
 import datetime
 
 # %%
-con = sqlite3.connect('./data/kor_stock.db')
+con = sqlite3.connect(os.path.join(data_path, 'kor_stock.db'))
 sql = "SELECT * FROM kor_qv_portfolio"
 raw_data = pd.read_sql(sql, con)
 con.close()
@@ -18,7 +23,7 @@ qv_port = qv_port[qv_port['rank'] <= 20].sort_values(['year', 'rank'])  # Qualit
 
 # %%
 def get_price(year, stock_cd=None):
-    con = sqlite3.connect('./data/kor_stock.db')
+    con = sqlite3.connect(os.path.join(data_path, 'kor_stock.db'))
     sql = "SELECT stock_cd, date, price FROM kor_price WHERE price_div = 'close'" +\
           " AND DATE(date) BETWEEN " + \
           "'" + str(year) + "-07-01' AND " +\
@@ -60,7 +65,7 @@ port_ret_df = port_ret_df[['port_daily_ret', 'port_cum_ret']]
 pf.create_returns_tear_sheet(port_ret_df['port_daily_ret'])
 
 # %%
-con = sqlite3.connect('./data/kor_stock.db')
+con = sqlite3.connect(os.path.join(data_path, 'kor_stock.db'))
 sql = "select * from kor_ticker"
 ticker = pd.read_sql(sql, con)
 con.close()
