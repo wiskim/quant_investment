@@ -13,11 +13,11 @@ import datetime
 sns.set()
 pd.options.display.float_format = '{:,.4f}'.format
 
-def get_fs(stock_cd=[], account_nm=[], year=None, period=5, ci_div='IND'):
-    if year is None:
-        year = int(datetime.date.today().year)
-    year_list = ','.join(str(x) for x in range(year-(period-1), year+1))
-    sql = "SELECT * FROM kor_fs WHERE year IN (" + year_list + ")"
+def get_fs(stock_cd=[], item_nm=[], fiscal_year=None, period=5, con_div='Seperated'):
+    if fiscal_year is None:
+        fiscal_year = int(datetime.date.today().year)
+    fiscal_year_list = ','.join(str(x) for x in range(fiscal_year-(period-1), fiscal_year+1))
+    sql = "SELECT * FROM kor_fs WHERE fiscal_year IN (" + fiscal_year_list + ")"
     if not stock_cd:
         pass
     elif type(stock_cd) != list:
@@ -25,30 +25,31 @@ def get_fs(stock_cd=[], account_nm=[], year=None, period=5, ci_div='IND'):
     else:
         stock_cd_list = ','.join("'" + str(x) + "'" for x in stock_cd)
         sql = sql + " AND stock_cd IN (" + stock_cd_list + ")"
-    if not account_nm:
+    if not item_nm:
         pass
-    elif type(account_nm) != list:
+    elif type(item_nm) != list:
         raise TypeError('계정과목명은 리스트 형태로 입력하여야합니다.')
     else:
-        account_nm_list = ','.join("'" + str(x) + "'" for x in account_nm)
-        sql = sql + " AND account_nm IN (" + account_nm_list + ")"
-    sql = sql + " AND ci_div = '" + ci_div + "'"
-    con = sqlite3.connect(os.path.join(data_path, 'kor_stock.db'))
+        item_nm_list = ','.join("'" + str(x) + "'" for x in item_nm)
+        sql = sql + " AND item_nm IN (" + item_nm_list + ")"
+    sql = sql + " AND con_div = '" + con_div + "'"
+    con = sqlite3.connect(os.path.join(data_path, 'quant.db'))
     kor_fs = pd.read_sql(sql, con)
     con.close()
+    kor_fs['item_value'] = pd.to_numeric(kor_fs['item_value'])
     return kor_fs
 
 def get_listed_stock(year, period=1):
-    con = sqlite3.connect(os.path.join(data_path, 'kor_stock.db'))
-    sql = "SELECT * FROM kor_ticker WHERE fn_sec_nm != '금융'"  #금융회사 제외
+    con = sqlite3.connect(os.path.join(data_path, 'quant.db'))
+    sql = "SELECT * FROM kor_ticker WHERE fn_industry_grp_nm not in ('은행', '보험', '증권', '기타금융')"  #금융회사 제외
     kor_ticker = pd.read_sql(sql, con)
     con.close()
-    kor_ticker.listed_day = pd.to_datetime(kor_ticker.listed_day)
-    kor_ticker.unlisted_day = pd.to_datetime(kor_ticker.unlisted_day)
-    kor_ticker = kor_ticker[(kor_ticker.listed_day < pd.to_datetime(str(year-(period-1))+'-01-01')) & 
-                            ((kor_ticker.unlisted_day.isnull()) | 
-                             (kor_ticker.unlisted_day > pd.to_datetime(str(year+1)+'-06-30')))]
-    kor_ticker = kor_ticker[['stock_cd', 'stock_nm', 'fn_ind_nm']]
+    kor_ticker.listing_date = pd.to_datetime(kor_ticker.listing_date)
+    kor_ticker.delisting_date = pd.to_datetime(kor_ticker.delisting_date)
+    kor_ticker = kor_ticker[(kor_ticker.listing_date < pd.to_datetime(str(year-(period-1))+'-01-01')) & 
+                            ((kor_ticker.delisting_date.isnull()) | 
+                             (kor_ticker.delisting_date > pd.to_datetime(str(year+1)+'-06-30')))]
+    kor_ticker = kor_ticker[['stock_cd', 'stock_nm', 'fn_industry_grp_nm']]
     return kor_ticker
 
 def get_nearest_bizday(date):    
@@ -56,13 +57,16 @@ def get_nearest_bizday(date):
     date_str1 = date_str1 + datetime.timedelta(days=-7)
     date_str1 = datetime.datetime.strftime(date_str1, '%Y-%m-%d')
     date_str1 = "'" + date_str1 + "'"
-    date_str2 = "'" + date + "'"
+    date_str2 = datetime.datetime.strptime(date, '%Y-%m-%d')
+    date_str2 = date_str2 + datetime.timedelta(days=+7)
+    date_str2 = datetime.datetime.strftime(date_str2, '%Y-%m-%d')
+    date_str2 = "'" + date_str2 + "'"
     sql = "SELECT date FROM (SELECT date(date) date FROM kor_mkt_cap) t1 WHERE t1.date BETWEEN date("
     sql = sql + date_str1
     sql = sql + ") AND date("
     sql = sql + date_str2
     sql = sql + ") ORDER BY date DESC LIMIT 1"
-    con = sqlite3.connect(os.path.join(data_path, 'kor_stock.db'))
+    con = sqlite3.connect(os.path.join(data_path, 'quant.db'))
     bizday = pd.read_sql(sql, con)
     bizday = bizday['date'].values[0]
     con.close()
@@ -72,7 +76,7 @@ def get_mkt_cap(date):
     bizday = get_nearest_bizday(date=date)
     bizday = "'" + bizday + "'"
     sql = "SELECT * FROM kor_mkt_cap WHERE date = " + bizday
-    con = sqlite3.connect(os.path.join(data_path, 'kor_stock.db'))
+    con = sqlite3.connect(os.path.join(data_path, 'quant.db'))
     mcap_df = pd.read_sql(sql, con)
     return mcap_df
 

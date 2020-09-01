@@ -4,10 +4,8 @@ data_path = os.path.join(project_path, 'data')
 
 import pandas as pd
 import numpy as np
-
-df = pd.read_csv(os.path.join(data_path, 'dataguide_mkt_cap.csv'), header=[0,1,2,3,4,5], index_col=0)
-
-df = df.unstack().reset_index()
+df = pd.read_csv(os.path.join(data_path, 'dataguide_mkt_cap.csv'), index_col=[0, 1, 2, 3, 4, 5])
+df = df.stack().reset_index()
 df.columns = ['stock_cd', 'stock_nm', 'kind', 'item', 'item_nm', 'freq', 'date', 'item_value']
 df['item_nm'] = df['item_nm'].replace({
     '상장주식수 (보통)(주)' : 'no_common',
