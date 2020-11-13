@@ -39,45 +39,30 @@ def get_fs(stock_cd=[], item_nm=[], fiscal_year=None, period=5, con_div='Seperat
     kor_fs['item_value'] = pd.to_numeric(kor_fs['item_value'])
     return kor_fs
 
-def get_listed_stock(year, period=1):
+def get_listed_stock(date_from, date_to, no_fin = True):
+    if no_fin:
+        sql = "SELECT * FROM kor_ticker WHERE fn_sec_nm != '금융'"
+    else:
+        sql = "SELECT * FROM kor_ticker"
     con = sqlite3.connect(os.path.join(data_path, 'quant.db'))
-    sql = "SELECT * FROM kor_ticker WHERE fn_industry_grp_nm not in ('은행', '보험', '증권', '기타금융')"  #금융회사 제외
     kor_ticker = pd.read_sql(sql, con)
     con.close()
     kor_ticker.listing_date = pd.to_datetime(kor_ticker.listing_date)
     kor_ticker.delisting_date = pd.to_datetime(kor_ticker.delisting_date)
-    kor_ticker = kor_ticker[(kor_ticker.listing_date < pd.to_datetime(str(year-(period-1))+'-01-01')) & 
+    kor_ticker = kor_ticker[(kor_ticker.listing_date <= pd.to_datetime(date_from)) & 
                             ((kor_ticker.delisting_date.isnull()) | 
-                             (kor_ticker.delisting_date > pd.to_datetime(str(year+1)+'-06-30')))]
+                             (kor_ticker.delisting_date > pd.to_datetime(date_to)))]
     kor_ticker = kor_ticker[['stock_cd', 'stock_nm', 'fn_industry_grp_nm']]
     return kor_ticker
 
-def get_nearest_bizday(date):    
-    date_str1 = datetime.datetime.strptime(date, '%Y-%m-%d')
-    date_str1 = date_str1 + datetime.timedelta(days=-7)
-    date_str1 = datetime.datetime.strftime(date_str1, '%Y-%m-%d')
-    date_str1 = "'" + date_str1 + "'"
-    date_str2 = datetime.datetime.strptime(date, '%Y-%m-%d')
-    date_str2 = date_str2 + datetime.timedelta(days=+7)
-    date_str2 = datetime.datetime.strftime(date_str2, '%Y-%m-%d')
-    date_str2 = "'" + date_str2 + "'"
-    sql = "SELECT date FROM (SELECT date(date) date FROM kor_mkt_cap) t1 WHERE t1.date BETWEEN date("
-    sql = sql + date_str1
-    sql = sql + ") AND date("
-    sql = sql + date_str2
-    sql = sql + ") ORDER BY date DESC LIMIT 1"
-    con = sqlite3.connect(os.path.join(data_path, 'quant.db'))
-    bizday = pd.read_sql(sql, con)
-    bizday = bizday['date'].values[0]
-    con.close()
-    return bizday
-
 def get_mkt_cap(date):
-    bizday = get_nearest_bizday(date=date)
-    bizday = "'" + bizday + "'"
-    sql = "SELECT * FROM kor_mkt_cap WHERE date = " + bizday
+    sql = "SELECT * FROM kor_mkt_cap WHERE date = '" + date +"'"
     con = sqlite3.connect(os.path.join(data_path, 'quant.db'))
     mcap_df = pd.read_sql(sql, con)
+    mcap_df = mcap_df.pivot_table(index=['stock_cd', 'stock_nm'], columns='item_nm', values='item_value').reset_index()
+    mcap_df['mkt_cap'] = mcap_df['mkt_cap_common'] + mcap_df['mkt_cap_preferred']
+    mcap_df = mcap_df[['stock_cd', 'stock_nm', 'mkt_cap']]
+    mcap_df.columns.name = None
     return mcap_df
 
 def roa_screener(year, period=1):

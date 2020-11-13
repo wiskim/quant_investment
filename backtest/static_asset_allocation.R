@@ -30,7 +30,7 @@ library(httr)
 library(rvest)
 library(lubridate)
 
-symbols = c('A069500', 'A148070')
+symbols = c('A245340', 'A195980', 'A148070', 'A153130')
 getKorSymbols <- function(symbols){
   for (symbol in symbols){
     url <- "https://fchart.stock.naver.com/sise.nhn"
@@ -62,7 +62,7 @@ prices <-  do.call(cbind, lapply(symbols, function(x) Cl(get(x)))) %>%
   na.omit()
 rets <- CalculateReturns(prices) %>% na.omit()
 portfolio <- Return.portfolio(rets,
-                              weights = c(0.6, 0.4),
+                              weights = c(0.35, 0.35, 0.24, 0.06),
                               rebalance_on = 'months',
                               verbose = TRUE)
 charts.PerformanceSummary(portfolio$returns)
@@ -71,4 +71,3 @@ Return.annualized(portfolio$returns)
 SharpeRatio.annualized(portfolio$returns)
 table.Drawdowns(portfolio$returns)
 apply.yearly(portfolio$returns, Return.cumulative)
-
