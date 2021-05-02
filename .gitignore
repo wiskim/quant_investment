@@ -8,3 +8,4 @@ __pycache__/stock_screener.cpython-36.pyc
 .RData
 .Rhistory
 quant_investment.Rproj
+screener/__pycache__/stock_screener.cpython-39.pyc
