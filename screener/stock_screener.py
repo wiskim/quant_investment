@@ -16,8 +16,8 @@ pd.options.display.float_format = '{:,.4f}'.format
 def get_fs(stock_cd=[], item_nm=[], fiscal_year=None, period=5, con_div='Seperated'):
     if fiscal_year is None:
         fiscal_year = int(datetime.date.today().year)
-    fiscal_year_list = ','.join(str(x) for x in range(fiscal_year-(period-1), fiscal_year+1))
-    sql = "SELECT * FROM kor_fs WHERE fiscal_year IN (" + fiscal_year_list + ")"
+    year_list = ','.join(str(x) for x in range(fiscal_year-(period-1), fiscal_year+1))
+    sql = "SELECT * FROM kor_fs WHERE fiscal_year IN (" + year_list + ")"
     if not stock_cd:
         pass
     elif type(stock_cd) != list:
@@ -37,6 +37,7 @@ def get_fs(stock_cd=[], item_nm=[], fiscal_year=None, period=5, con_div='Seperat
     kor_fs = pd.read_sql(sql, con)
     con.close()
     kor_fs['item_value'] = pd.to_numeric(kor_fs['item_value'])
+    kor_fs['item_value'] = kor_fs['item_value'].fillna(0)
     return kor_fs
 
 def get_listed_stock(date_from, date_to, no_fin = True):
@@ -65,13 +66,13 @@ def get_mkt_cap(date):
     mcap_df.columns.name = None
     return mcap_df
 
-def roa_screener(year, period=1):
-    roa_df = get_fs(year=year, account_nm=['당기순이익', '총자산'], period=period)
-    roa_df = roa_df.pivot_table(index=['stock_cd', 'year'], columns='account_nm', values='fs_value')
-    roa_df['roa'] = roa_df.당기순이익 / roa_df.총자산
+def roa_screener(fiscal_year, period=1):
+    roa_df = get_fs(fiscal_year=fiscal_year, item_nm=['당기순이익(손실)', '자산'], period=period)
+    roa_df = roa_df.pivot_table(index=['stock_cd', 'fiscal_year'], columns='item_nm', values='item_value')
+    roa_df['roa'] = roa_df['당기순이익(손실)'] / roa_df['자산']
     roa_df['roa'] = np.round(roa_df['roa'], 4)
     roa_df['roa'] = np.where(roa_df.roa<=-1, np.nan, roa_df.roa)    # roa가 (-)100% 이하인 경우 기하평균수익률 계산시 오류가 발생하므로 NA로 마스킹
-    roa_df = roa_df.pivot_table(index='stock_cd', columns='year', values='roa')
+    roa_df = roa_df.pivot_table(index='stock_cd', columns='fiscal_year', values='roa')
     roa_df = roa_df.dropna()    # 5년간 roa가 정상적으로 산출된 종목만 필터링
     roa_df = roa_df + 1
     roa_df['roa_gmean'] = roa_df.product(axis=1, skipna=True) ** (1 / roa_df.count(axis=1))
@@ -82,15 +83,21 @@ def roa_screener(year, period=1):
     roa_df = roa_df.reset_index()
     return roa_df
 
-def roic_screener(year, period=1):
-    roic_df = get_fs(year=year, account_nm=['*총차입부채', '총자본', '현금및현금성자산', '*총금융자산', '투자부동산', '영업이익'], period=period)
-    roic_df = roic_df.pivot_table(index=['stock_cd', 'year'], columns='account_nm', values='fs_value')
-    roic_df['ic'] = roic_df['*총차입부채'] + roic_df['총자본'] - roic_df['현금및현금성자산'] - roic_df['*총금융자산'] - roic_df['투자부동산']
+def roic_screener(fiscal_year, period=1):
+    roic_df = get_fs(fiscal_year=fiscal_year, 
+                     item_nm=['단기사채', '단기차입금', '사채', '장기차입금', '자본', 
+                              '현금및현금성자산', '유동금융자산', '장기금융자산', '투자부동산', '영업이익(손실)'], 
+                     period=period)
+    roic_df = roic_df.pivot_table(index=['stock_cd', 'fiscal_year'], columns='item_nm', values='item_value')
+    roic_df['ic'] = (
+        roic_df['단기사채'] + roic_df['단기차입금'] + roic_df['사채'] + roic_df['장기차입금'] + roic_df['자본'] - 
+        roic_df['현금및현금성자산'] - roic_df['유동금융자산'] - roic_df['장기금융자산'] - roic_df['투자부동산'] 
+    )
     roic_df['ic'] = np.where(roic_df.ic<=0, np.nan, roic_df.ic)     #투하자본이 0이하인 종목은 아웃라이어로 보아 NA로 마스킹
-    roic_df['roic'] = roic_df.영업이익 / roic_df.ic
+    roic_df['roic'] = roic_df['영업이익(손실)'] / roic_df['ic']
     roic_df['roic'] = np.round(roic_df.roic, 4)
     roic_df['roic'] = np.where(roic_df.roic<=-1, np.nan, roic_df.roic)     # roic가 (-)100% 이하인 경우 기하평균수익률 계산시 오류가 발생하므로 NA로 마스킹
-    roic_df = roic_df.pivot_table(index='stock_cd', columns='year', values='roic')
+    roic_df = roic_df.pivot_table(index='stock_cd', columns='fiscal_year', values='roic')
     roic_df = roic_df.dropna()    # 5년간 roic가 정상적으로 산출된 종목만 필터링
     roic_df = roic_df + 1
     roic_df['roic_gmean'] = roic_df.product(axis=1, skipna=True) ** (1 / roic_df.count(axis=1))
@@ -101,29 +108,27 @@ def roic_screener(year, period=1):
     roic_df = roic_df.reset_index()
     return roic_df
 
-def fcfa_screener(year, period=1):
-    fcfa_df = get_fs(account_nm=['영업활동으로인한현금흐름', '*유형자산순취득액', '*무형자산순취득액', '총자산'], year=year, period=period)
-    fcfa_df = fcfa_df.pivot_table(index=['stock_cd', 'year'], columns='account_nm', values='fs_value')
-    fcfa_df['fcf'] = fcfa_df['영업활동으로인한현금흐름'] - (fcfa_df['*유형자산순취득액'] + fcfa_df['*무형자산순취득액'])
-    fcfa_df = fcfa_df.pivot_table(values=['fcf', '총자산'], index='stock_cd', columns='year')
-    fcfa_df.columns = fcfa_df.columns.map('_'.join)
+def fcfa_screener(fiscal_year, period=1):
+    fcfa_df = get_fs(item_nm=['영업에서창출된현금흐름', '투자활동으로인한현금흐름', '자산'], 
+                     fiscal_year=fiscal_year, period=period)
+    fcfa_df = fcfa_df.pivot_table(index=['stock_cd', 'fiscal_year'], columns='item_nm', values='item_value')
+    fcfa_df['fcf'] = fcfa_df['영업에서창출된현금흐름'] - fcfa_df['투자활동으로인한현금흐름']
+    fcfa_df = fcfa_df.pivot_table(values=['fcf', '자산'], index='stock_cd', columns='fiscal_year')
+    fcfa_df.columns = [(x[0])+'_'+str(x[1]) for x in fcfa_df.columns.values]
     fcfa_df['fcf_sum'] = fcfa_df.filter(regex='^fcf').sum(axis=1)
-    fcfa_df['fcfa'] = fcfa_df['fcf_sum'] / fcfa_df['총자산_'+str(year)]
+    fcfa_df['fcfa'] = fcfa_df['fcf_sum'] / fcfa_df['자산_'+str(fiscal_year)]
     fcfa_df = fcfa_df.sort_values('fcfa', ascending=False)
     fcfa_df = fcfa_df.reset_index()
     return fcfa_df
 
-def mg_screener(year, period=1):
-    mg_df = get_fs(account_nm=['매출액', '매출총이익', '영업수익', '영업이익'], year=year, period=period+1)
-    mg_df = mg_df.pivot_table(index=['stock_cd', 'year'], columns='account_nm', values='fs_value')
-    mg_df['gm'] = np.where(
-        mg_df.매출액 != mg_df.매출총이익, 
-        np.round(mg_df.매출총이익 / mg_df.매출액, 4), 
-        np.round(mg_df.영업이익 / mg_df.영업수익, 4)
-    )    # gross margin (단, 매출액과 매출총이익 항목없이 영업수익과 영업이익만 보여주는 종목은 영업이익률 사용)
-    mg_df = mg_df.pivot_table(index='stock_cd', columns='year', values='gm')
-    mg_df = mg_df.dropna()  # 매출총이익률을 계산할 수 있는 종목만 필터링
-    mg_df = mg_df[(mg_df > 0).all(1)] # 매출총이익이 적자인 종목은 제외
+def mg_screener(fiscal_year, period=1):
+    mg_df = get_fs(item_nm=['매출액(수익)', '매출총이익(손실)'], fiscal_year=fiscal_year, period=period+1)
+    mg_df = mg_df.pivot_table(index=['stock_cd', 'fiscal_year'], columns='item_nm', values='item_value')
+    mg_df['gm'] = np.round(mg_df['매출총이익(손실)'] / mg_df['매출액(수익)'], 4)
+    mg_df = mg_df.pivot_table(index='stock_cd', columns='fiscal_year', values='gm')
+    mg_df.columns = [str(col) for col in mg_df.columns.values]
+    mg_df = mg_df.dropna()      # 매출총이익률을 계산할 수 있는 종목만 필터링
+    mg_df = mg_df[(mg_df > 0).all(1)]       # 매출총이익이 적자인 종목은 제외
     for i in range(1, len(mg_df.columns)):
         mg_df['mg_'+mg_df.columns[i]] = np.round((mg_df.iloc[:, i] / mg_df.iloc[:, i-1]) - 1, 4) # margin growth
     mg_df = mg_df + 1 
@@ -144,12 +149,14 @@ def mg_screener(year, period=1):
     mg_df = mg_df.reset_index()
     return mg_df
 
-def ete_screener(year, mkt_cap_date):
-    kor_fs = get_fs(account_nm=['*순차입부채', '영업이익'], year=year, period=1)
-    kor_fs = kor_fs.pivot_table(index = 'stock_cd', columns='account_nm', values='fs_value')
+def ete_screener(fiscal_year, mkt_cap_date):
+    kor_fs = get_fs(item_nm=['단기사채', '단기차입금', '사채', '장기차입금', '현금및현금성자산', '영업이익(손실)'], 
+                    fiscal_year=fiscal_year, period=1)
+    kor_fs = kor_fs.pivot_table(index = 'stock_cd', columns='item_nm', values='item_value')
     kor_mkt_cap = get_mkt_cap(mkt_cap_date)    # 시가총액 기준일자 설정
     ete_df = pd.merge(kor_fs, kor_mkt_cap, left_on=kor_fs.index, right_on='stock_cd', how='inner')
-    ete_df.rename(columns={'*순차입부채':'net_debt', '영업이익':'ebit'}, inplace=True)
+    ete_df['net_debt'] = ete_df['단기사채'] + ete_df['단기차입금'] + ete_df['사채'] + ete_df['장기차입금'] - ete_df['현금및현금성자산']
+    ete_df.rename(columns={'영업이익(손실)':'ebit'}, inplace=True)
     ete_df = ete_df[['stock_cd', 'ebit', 'net_debt', 'mkt_cap']]
     ete_df['net_debt'] = ete_df.net_debt / 1000
     ete_df['ebit'] = ete_df.ebit / 1000
@@ -160,69 +167,68 @@ def ete_screener(year, mkt_cap_date):
     ete_df = ete_df.reset_index(drop=True)
     return ete_df
 
-def fscore_rawdata(year):
-    account_nm_list = [
-        '당기순이익',
-        '총자산',
-        '영업활동으로인한현금흐름',
-        '*유형자산순취득액',
-        '*무형자산순취득액',
+def fscore_rawdata(fiscal_year):
+    item_nm_list = [
+        '당기순이익(손실)',
+        '자산',
+        '영업에서창출된현금흐름',
+        '투자활동으로인한현금흐름',
         '장기차입금',
         '유동자산',
         '유동부채',
-        '자본의증가(감소)',
-        '매출총이익',
-        '매출액'
+        '유상증자(감자)',
+        '매출총이익(손실)',
+        '매출액(수익)'
     ]
-    fscore_df = get_fs(account_nm=account_nm_list, year=year, period=2)
-    fscore_df = fscore_df.pivot_table(values='fs_value', index=['stock_cd', 'year'], columns='account_nm')
-    fscore_df['roa'] = fscore_df['당기순이익'] / fscore_df['총자산']
-    fscore_df['fcfa'] = (fscore_df['영업활동으로인한현금흐름'] - (fscore_df['*유형자산순취득액'] + fscore_df['*무형자산순취득액'])) / fscore_df['총자산']
+    fscore_df = get_fs(item_nm=item_nm_list, fiscal_year=fiscal_year, period=2)
+    fscore_df = fscore_df.pivot_table(values='item_value', index=['stock_cd', 'fiscal_year'], columns='item_nm')
+    fscore_df['roa'] = fscore_df['당기순이익(손실)'] / fscore_df['자산']
+    fscore_df['fcfa'] = (fscore_df['영업에서창출된현금흐름'] - fscore_df['투자활동으로인한현금흐름']) / fscore_df['자산']
     fscore_df['accrual'] = fscore_df['fcfa'] - fscore_df['roa']
-    fscore_df['lev'] = fscore_df['장기차입금'] / fscore_df['총자산']
+    fscore_df['lev'] = fscore_df['장기차입금'] / fscore_df['자산']
     fscore_df['liq'] = fscore_df['유동자산'] / fscore_df['유동부채']
-    fscore_df['offer'] = fscore_df['자본의증가(감소)']
-    fscore_df['margin'] = fscore_df['매출총이익'] / fscore_df['매출액']
-    fscore_df['turn'] = fscore_df['매출액'] / fscore_df['총자산']
+    fscore_df['offer'] = fscore_df['유상증자(감자)']
+    fscore_df['margin'] = fscore_df['매출총이익(손실)'] / fscore_df['매출액(수익)']
+    fscore_df['turn'] = fscore_df['매출액(수익)'] / fscore_df['자산']
     fscore_df = fscore_df[['roa', 'fcfa', 'accrual', 'lev', 'liq', 'offer', 'margin', 'turn']]
     fscore_df = fscore_df.unstack()
     fscore_df = fscore_df.dropna()
     return fscore_df
 
-def fscore_screener(year):    
-    fscore_df = fscore_rawdata(year)
+def fscore_screener(fiscal_year):    
+    fscore_df = fscore_rawdata(fiscal_year)
     # 현재 수익성
-    fscore_df['f_1'] = np.where(fscore_df.loc[:, ('roa', str(year))] > 0, 1, 0)
-    fscore_df['f_2'] = np.where(fscore_df.loc[:, ('fcfa', str(year))] > 0, 1, 0)
-    fscore_df['f_3'] = np.where(fscore_df.loc[:, ('accrual', str(year))] > 0, 1, 0)
+    fscore_df['f_1'] = np.where(fscore_df.loc[:, ('roa', fiscal_year)] > 0, 1, 0)
+    fscore_df['f_2'] = np.where(fscore_df.loc[:, ('fcfa', fiscal_year)] > 0, 1, 0)
+    fscore_df['f_3'] = np.where(fscore_df.loc[:, ('accrual', fiscal_year)] > 0, 1, 0)
 
     #안정성
     fscore_df['f_4'] = np.where(
-        fscore_df.loc[:, ('lev', str(year))] 
-        - fscore_df.loc[:, ('lev', str(year-1))] <= 0, 1, 0
+        fscore_df.loc[:, ('lev', fiscal_year)] 
+        - fscore_df.loc[:, ('lev', fiscal_year-1)] <= 0, 1, 0
     )
     fscore_df['f_5'] = np.where(
-        fscore_df.loc[:, ('liq', str(year))] 
-        - fscore_df.loc[:, ('liq', str(year-1))] > 0, 1, 0
+        fscore_df.loc[:, ('liq', fiscal_year)] 
+        - fscore_df.loc[:, ('liq', fiscal_year-1)] > 0, 1, 0
     )
-    fscore_df['f_6'] = np.where(fscore_df.loc[:, ('offer', str(year))] <= 0, 1, 0)
+    fscore_df['f_6'] = np.where(fscore_df.loc[:, ('offer', fiscal_year)] <= 0, 1, 0)
 
     # 최근 영업 호전성
     fscore_df['f_7'] = np.where(
-        fscore_df.loc[:, ('roa', str(year))] 
-        - fscore_df.loc[:, ('roa', str(year-1))] > 0, 1, 0
+        fscore_df.loc[:, ('roa', fiscal_year)] 
+        - fscore_df.loc[:, ('roa', fiscal_year-1)] > 0, 1, 0
     )
     fscore_df['f_8'] = np.where(
-        fscore_df.loc[:, ('fcfa', str(year))] 
-        - fscore_df.loc[:, ('fcfa', str(year-1))] > 0, 1, 0
+        fscore_df.loc[:, ('fcfa', fiscal_year)] 
+        - fscore_df.loc[:, ('fcfa', fiscal_year-1)] > 0, 1, 0
     )
     fscore_df['f_9'] = np.where(
-        fscore_df.loc[:, ('margin', str(year))] 
-        - fscore_df.loc[:, ('margin', str(year-1))] > 0, 1, 0
+        fscore_df.loc[:, ('margin', fiscal_year)] 
+        - fscore_df.loc[:, ('margin', fiscal_year-1)] > 0, 1, 0
     )
     fscore_df['f_10'] = np.where(
-        fscore_df.loc[:, ('turn', str(year))] 
-        - fscore_df.loc[:, ('turn', str(year-1))] > 0, 1, 0
+        fscore_df.loc[:, ('turn', fiscal_year)] 
+        - fscore_df.loc[:, ('turn', fiscal_year-1)] > 0, 1, 0
     )
     fscore_df['fscore'] = fscore_df.loc[:, 'f_1':'f_10'].sum(axis=1)
     fscore_df = fscore_df['fscore']

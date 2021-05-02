@@ -13,33 +13,33 @@ import sqlite3
 
 # %%
 def qv_portfolio_screener(year, period=3):
-    # 0. 매년 6월말에 직전연도 재무제표를 기준으로 종목선정
-    # 1. 투자 유니버스 : 금융주를 제외하고 과거 5년간 상장이 유지된 종목
-    universe = get_listed_stock(year-1, period=period)
+    # 0. 매년 4월말에 직전연도 재무제표를 기준으로 종목선정
+    # 1. 투자 유니버스 : 금융주를 제외하고 과거 3년 실적이 존재하는 기업
+    universe = get_listed_stock(str(year-period)+'-01-01', str(year)+'-04-30', no_fin=True)
     # 2. Price
-    ete_df = ete_screener(year-1, mkt_cap_date=str(year)+'-06-30')
+    ete_df = ete_screener(fiscal_year=year-1, mkt_cap_date=str(year)+'-04-30')
     ete_df = pd.merge(universe, ete_df, how='left', on='stock_cd')
     ete_df['price'] = np.round(ete_df['ete'].rank(pct=True), 5)
     # 3. Quality
     # 3-1. 경제적해자
-    # 3-1-1. ROA(5)
-    roa_df = roa_screener(year-1, period=period)
+    # 3-1-1. ROA(3)
+    roa_df = roa_screener(fiscal_year=year-1, period=period)
     roa_df = pd.merge(universe, roa_df, how='left', on='stock_cd')
     roa_df['p_roa'] = np.round(roa_df['roa_gmean'].rank(pct=True), 5)
-    # 3-1-2. ROIC(5)
-    roic_df = roic_screener(year-1, period=period)
+    # 3-1-2. ROIC(3)
+    roic_df = roic_screener(fiscal_year=year-1, period=period)
     roic_df = pd.merge(universe, roic_df, how='left', on='stock_cd')
     roic_df['p_roic'] = np.round(roic_df['roic_gmean'].rank(pct=True), 5)
     # 3-1-3. 장기 FCFA
-    fcfa_df = fcfa_screener(year-1, period=period)
+    fcfa_df = fcfa_screener(fiscal_year=year-1, period=period)
     fcfa_df = pd.merge(universe, fcfa_df, how='left', on='stock_cd')
     fcfa_df['p_fcfa'] = np.round(fcfa_df['fcfa'].rank(pct=True), 5)
     # 3-1-4. Margin Max
-    mm_df = mg_screener(year-1, period=period)
+    mm_df = mg_screener(fiscal_year=year-1, period=period)
     mm_df = pd.merge(universe, mm_df, how='left', on='stock_cd')
     mm_df['p_mm'] = np.round(mm_df['mm'].rank(pct=True), 5)
     # 3-2. FS_Score
-    fscore_df = fscore_screener(year-1)
+    fscore_df = fscore_screener(fiscal_year=year-1)
     fscore_df['p_fs'] = fscore_df['fscore'] / 10
 
     result_df = universe
@@ -70,7 +70,7 @@ def qv_portfolio_screener(year, period=3):
 
 # %%
 qv_port_all = pd.DataFrame()
-for year in range(2003, 2020):
+for year in range(2020, 2021):
     qv_port_year = qv_portfolio_screener(year)
     qv_port_year['year'] = year
     first_col = qv_port_year.pop('year')
